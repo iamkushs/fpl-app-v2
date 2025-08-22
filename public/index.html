@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPL Mini‑League Points</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>FPL Mini‑League Points</h1>
+      <p>League ID <strong>498513</strong>. Enter a gameweek to see the latest official scores. Captains double their points.</p>
+    </header>
+    <main>
+      <div class="controls">
+        <label for="gw">Gameweek:</label>
+        <input id="gw" type="number" min="1" max="38" value="1" />
+        <button id="fetch-btn">Get Points</button>
+      </div>
+      <div id="message" class="message"></div>
+      <table id="results-table" class="results">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Team</th>
+            <th>Member 1 (pts)</th>
+            <th>Member 2 (pts)</th>
+            <th>Captain</th>
+            <th>Team Points</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="captain-editor" class="captain-editor" style="display:none;">
+        <h2>Set Captains for GW <span id="captain-gw-display"></span></h2>
+        <form id="captain-form">
+          <table class="captain-table">
+            <thead>
+              <tr><th>Team</th><th>Select Captain</th></tr>
+            </thead>
+            <tbody id="captain-table-body"></tbody>
+          </table>
+          <button type="submit">Save Captains</button>
+        </form>
+        <div id="captain-save-msg" class="message"></div>
+      </div>
+    </main>
+    <script src="script.js"></script>
+  </body>
+</html>
