@@ -291,6 +291,17 @@ async function fetchManagerGwPoints(entryId, gw, liveMapMaybe) {
   return 0;
 }
 
+// Load static captain overrides from captains.json
+async function fetchCaptainOverrides() {
+  try {
+    const res = await fetch('/captains.json');  // captains.json must be in /public folder
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.byGw || {};
+  } catch {
+    return {};
+  }
+}
 
   async function loadResults() {
     const gw = parseInt(gwInput.value.trim(), 10);
@@ -304,6 +315,10 @@ async function fetchManagerGwPoints(entryId, gw, liveMapMaybe) {
     captainEditor.style.display = 'none';
     captainSaveMsg.textContent = '';
     currentGw = gw;
+
+const capOverrides = await fetchCaptainOverrides();
+const gwCaptains = capOverrides[gw] || {};
+
 
     try {
       // 1) Build directory of manager names → entry IDs from league
@@ -333,12 +348,15 @@ try { m1.points = await fetchManagerGwPoints(m1.entryId, gw, liveMap); } catch {
 try { m2.points = await fetchManagerGwPoints(m2.entryId, gw, liveMap); } catch { m2.points = 0; anyPending = true; }
 
 
-        let captainEntryId = getCaptainFor(gw, team.teamName);
-        let autoLowest = false;
-        if (!captainEntryId) {
-          autoLowest = true;
-          captainEntryId = (m1.points <= m2.points) ? m1.entryId : m2.entryId;
-        }
+       // Check static overrides first (from captains.json), then localStorage, then fallback
+let captainEntryId = gwCaptains[team.teamName] || getCaptainFor(gw, team.teamName);
+let autoLowest = false;
+
+if (!captainEntryId) {
+  autoLowest = true;
+  captainEntryId = (m1.points <= m2.points) ? m1.entryId : m2.entryId;
+}
+
 
         const base = (m1.points || 0) + (m2.points || 0);
         const captainPoints = (captainEntryId === m1.entryId) ? m1.points : m2.points;
@@ -388,7 +406,7 @@ try { m2.points = await fetchManagerGwPoints(m2.entryId, gw, liveMap); } catch {
         const m1 = team.members[0];
         const m2 = team.members[1];
         const radioName = `cap-${team.teamName.replace(/\s+/g, '-')}`;
-        const selected = capMap[team.teamName] || null;
+       const selected = capMap[team.teamName] ?? gwCaptains[team.teamName] ?? null;
 
         const row = document.createElement('tr');
         row.innerHTML = `
