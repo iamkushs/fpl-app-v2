@@ -7,6 +7,23 @@
 
   Edit this if needed: LEAGUE_ID (default 498513).
 */
+// ---- LIVE points cache + helper ----
+const LIVE_POINTS_CACHE = new Map(); // gw -> { elementId: live_total_points }
+
+async function getLivePointsMap(gw) {
+  if (LIVE_POINTS_CACHE.has(gw)) return LIVE_POINTS_CACHE.get(gw);
+
+  const r = await fetch(`/api/fpl?path=event/${gw}/live/`);
+  if (!r.ok) { LIVE_POINTS_CACHE.set(gw, null); return null; }
+
+  const data = await r.json();
+  const els = Array.isArray(data?.elements) ? data.elements : [];
+  const map = {};
+  for (const e of els) map[e.id] = Number(e?.stats?.total_points ?? 0);
+
+  LIVE_POINTS_CACHE.set(gw, map);
+  return map;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   // League you track
@@ -229,15 +246,51 @@ async function fetchLeagueDirectory(leagueId) {
 }
 
 
-  // Points for a manager (entryId) in a GW
-  async function fetchManagerGwPoints(entryId, gw) {
-    const res = await fetch(`/api/fpl?path=entry/${entryId}/event/${gw}/picks/`);
-    if (!res.ok) throw new Error(`FPL picks fetch failed for ${entryId}`);
-    const data = await res.json();
-    return (data && data.entry_history && typeof data.entry_history.points === 'number')
-      ? data.entry_history.points
-      : 0;
-  }
+// ---- Real-time points for a manager ----
+// Order: LIVE (picks × live totals) → HISTORY (finished GWs) → PICKS (fallback)
+async function fetchManagerGwPoints(entryId, gw, liveMapMaybe) {
+  // 1) LIVE calc
+  try {
+    const liveMap = liveMapMaybe ?? await getLivePointsMap(gw);
+    if (liveMap) {
+      const rPicks = await fetch(`/api/fpl?path=entry/${entryId}/event/${gw}/picks/`);
+      if (rPicks.ok) {
+        const picksJson = await rPicks.json();
+        const picks = Array.isArray(picksJson?.picks) ? picksJson.picks : [];
+        const liveTotal = picks.reduce((sum, p) => {
+          const pts = liveMap[p.element] ?? 0;
+          return sum + pts * Number(p.multiplier || 0); // bench=0, C=2, TC=3
+        }, 0);
+        if (Number.isFinite(liveTotal)) return liveTotal;
+      }
+    }
+  } catch {}
+
+  // 2) HISTORY (finished weeks)
+  try {
+    const rHist = await fetch(`/api/fpl?path=entry/${entryId}/history/`);
+    if (rHist.ok) {
+      const hist = await rHist.json();
+      const events = Array.isArray(hist?.current) ? hist.current : (hist?.past_events || hist?.past || []);
+      const row = events.find(e => Number(e?.event) === Number(gw));
+      if (row && typeof row.points === 'number') return row.points;
+    }
+  } catch {}
+
+  // 3) PICKS fallback
+  try {
+    const rPicks = await fetch(`/api/fpl?path=entry/${entryId}/event/${gw}/picks/`);
+    if (rPicks.ok) {
+      const data = await rPicks.json();
+      if (data?.entry_history && typeof data.entry_history.points === 'number') {
+        return data.entry_history.points;
+      }
+    }
+  } catch {}
+
+  return 0;
+}
+
 
   async function loadResults() {
     const gw = parseInt(gwInput.value.trim(), 10);
@@ -255,6 +308,7 @@ async function fetchLeagueDirectory(leagueId) {
     try {
       // 1) Build directory of manager names → entry IDs from league
       const directory = await fetchLeagueDirectory(LEAGUE_ID);
+	const liveMap = await getLivePointsMap(gw);
 
       // 2) Compose results for your custom teams
       const results = [];
@@ -275,9 +329,9 @@ m2.entryId = resolveEntryId(directory, m2.manager, team.teamName);
           resultsBody.appendChild(tr);
           continue;
         }
+try { m1.points = await fetchManagerGwPoints(m1.entryId, gw, liveMap); } catch { m1.points = 0; anyPending = true; }
+try { m2.points = await fetchManagerGwPoints(m2.entryId, gw, liveMap); } catch { m2.points = 0; anyPending = true; }
 
-        try { m1.points = await fetchManagerGwPoints(m1.entryId, gw); } catch { m1.points = 0; anyPending = true; }
-        try { m2.points = await fetchManagerGwPoints(m2.entryId, gw); } catch { m2.points = 0; anyPending = true; }
 
         let captainEntryId = getCaptainFor(gw, team.teamName);
         let autoLowest = false;
