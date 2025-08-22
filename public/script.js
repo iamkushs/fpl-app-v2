@@ -173,33 +173,29 @@ const TEAM_SPECIFIC_OVERRIDES = {
     return A.includes(B) || B.includes(A);
   }
 
-  // Fetch all standings pages and build managerName → { entryId, entry_name, player_name }
-  async function fetchLeagueDirectory(leagueId) {
-    const nameToEntry = new Map();
-    for (let page = 1; page <= 10; page++) {
-      const url = `/api/fpl?path=leagues-classic/${leagueId}/standings/?page_standings=${page}`;
-      const res = await fetch(url);
-      if (!res.ok) break;
-      const data = await res.json();
+// Fetch all standings via our serverless helper (handles pagination reliably)
+async function fetchLeagueDirectory(leagueId) {
+  const nameToEntry = new Map();
 
-      const results = data?.standings?.results || [];
-      if (!results.length) break;
+  const res = await fetch(`/api/dumpLeague?leagueId=${leagueId}`);
+  if (!res.ok) throw new Error('Failed to load league standings');
+  const data = await res.json();
 
-      for (const r of results) {
-        if (r && r.player_name && r.entry) {
-          nameToEntry.set(r.player_name, {
-            entryId: r.entry,
-            entryName: r.entry_name,
-            playerName: r.player_name
-          });
-        }
-      }
-
-      const hasNext = !!data?.standings?.has_next;
-      if (!hasNext) break;
+  const rows = Array.isArray(data?.managers) ? data.managers : [];
+  for (const r of rows) {
+    if (r?.manager && r?.entryId) {
+      nameToEntry.set(r.manager, {
+        entryId: r.entryId,
+        entryName: r.fplTeam || '',
+        playerName: r.manager
+      });
     }
-    return nameToEntry;
   }
+
+  // helpful log while we debug
+  console.log('Standings loaded:', nameToEntry.size, 'managers');
+  return nameToEntry;
+}
 
   // Resolve an entryId from a manager display name, using tolerant matching
   function resolveEntryId(nameToEntry, targetManagerName, teamName) {
