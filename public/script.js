@@ -12,6 +12,81 @@ document.addEventListener('DOMContentLoaded', () => {
   // League you track
   const LEAGUE_ID = 498513; // change if needed
 
+// Global overrides: short name -> exact FPL manager name (from standings dump)
+const NAME_OVERRIDES = {
+  "Aadi": "Aditya Halwe",
+  "Aniket": "Aniket Sainani",
+  "Arun": "Arun Raghavan Guru",
+  "Chirag": "Chirag Chawla",
+  "Nachiket": "Nachiket Chawla",
+  "Abdul": "Abdul Salam Kamal",
+  "Anosh": "Anosh Daji",
+  "Anurag": "Anurag Toshniwal",
+  "Samarth": "Samarth Mundra",
+  "Ayush": "Ayush Nagar",
+  "Saket": "Saket Halway",
+  "Ramen": "𝔻𝔼-𝕃𝕀𝔾𝕋 - 𝔼𝔻",
+  "Rishabh S": "Rishab Saini TvT",
+  "Yash G": "Smita Gokani",
+  "Avirup": "A.R.N. Mukherjee",
+  "Devraj": "Devraj Banerjee",
+  "Ashwin": "Ashwin N",
+  "Chintan": "Chintan shah",
+  "Abrar": "Abrar Mughal",
+  "Dharm": "Dharm Shah",
+  "Manik": "M Malhotra",
+  "Angad": "Angy S B",
+  "Harsh": "Harsh Bharvada",
+  "Parag": "Parag Gaikwd",
+  "Yash C": "Yash C",
+  "Shubham": "Shivani Chavan",
+  "Subhajit": "Subhajit Das",
+  "Bhairab": "Bhairab Gogoi",
+  "Pulakesh": "Pulakesh Das",
+  "Sankalp": "Sankalp Outlaws",
+  "Suvendu": "Suvendu Subhrajyoti",
+  "Naman": "Nam Man",
+  "Sachin": "Sachin Mittaal",
+  "Anshuman": "Anshuman Gaonsindhe",
+  "Rishabh M": "Rishabh Mehta",
+  "Deepesh": "DIPESH GAGGAR",
+  "Saahil": "SAAHIL JAVKAR",
+  "Gaurav": "Gaurav G",
+  "Paritosh": "Paritosh Mishra",
+  "Ujjwal": "Ujjwal Agrawal",
+  "Kartik": "Kartik Patil",
+  "Shaibaz": "Shaibaz Khan",
+  "Yashasva": "Yashasva Tungare",
+  "Aakash": "Aakash Shukla",
+  "Kush": "Kush Shukla",
+  "Jeetesh": "Jeetesh Assudani",
+  "Gautam": "Gautam Mohanty",
+  "Shivam": "Shivam Hargunani",
+  "Ketan": "Ketan B",
+  "Raunak": "Raunak Gupta",
+  "Ankur": "Ankur Srivastava",
+  "Apurv": "Akshay Kulkarni",   // per standings dump
+  "Sushank": "Suhani Pimple",   // per standings dump
+  "Subham": "Subham Sushobhit",
+  "Swagat": "Swagat Das"
+};
+
+// Per-team overrides to disambiguate duplicates (Akshay, Pankaj, Aditya, Kapil)
+const TEAM_SPECIFIC_OVERRIDES = {
+  "Bianconeri Blues": { "Akshay": "Akshay Hariharan" },
+  "Royal Reds":       { "Akshay": "akshay joharle" },
+
+  "Footballing Gods": { "Pankaj": "Pankaj Shende" },
+  "JoBros":           { "Pankaj": "Pankaj Bhatia" },
+
+  "Stretford Kops":   { "Aditya": "A S" },
+  "The Anfield Devils": { "Aditya": "Aditya Rao" },
+
+  "Scouse Force":     { "Kapil": "Kapil Ingale" },
+  "Thunderbolts":     { "Kapil C": "Kapil Chaudhary" }
+};
+
+
   // Your 2-person teams (manager display names as seen in FPL)
   const TEAMS = [
     { teamName: 'Banter Bros',               members: [{ manager: 'Aadi' },      { manager: 'Aniket' }] },
@@ -127,19 +202,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Resolve an entryId from a manager display name, using tolerant matching
-  function resolveEntryId(nameToEntry, targetManagerName) {
-    if (nameToEntry.has(targetManagerName)) {
-      return nameToEntry.get(targetManagerName).entryId;
-    }
-    const keys = Array.from(nameToEntry.keys());
-    const exact = keys.find(k => norm(k) === norm(targetManagerName));
-    if (exact) return nameToEntry.get(exact).entryId;
-
-    const partial = keys.find(k => similar(k, targetManagerName));
-    if (partial) return nameToEntry.get(partial).entryId;
-
-    return null;
+  function resolveEntryId(nameToEntry, targetManagerName, teamName) {
+  // 0) team-specific override?
+  const teamMap = TEAM_SPECIFIC_OVERRIDES[teamName];
+  const teamOverride = teamMap?.[targetManagerName];
+  if (teamOverride && nameToEntry.has(teamOverride)) {
+    return nameToEntry.get(teamOverride).entryId;
   }
+
+  // 1) global override?
+  const override = NAME_OVERRIDES[targetManagerName];
+  if (override && nameToEntry.has(override)) {
+    return nameToEntry.get(override).entryId;
+  }
+
+  // 2) exact
+  if (nameToEntry.has(targetManagerName)) {
+    return nameToEntry.get(targetManagerName).entryId;
+  }
+
+  // 3) normalized/partial
+  const keys = Array.from(nameToEntry.keys());
+  const exact = keys.find(k => norm(k) === norm(targetManagerName));
+  if (exact) return nameToEntry.get(exact).entryId;
+
+  const partial = keys.find(k => similar(k, targetManagerName));
+  if (partial) return nameToEntry.get(partial).entryId;
+
+  return null;
+}
+
 
   // Points for a manager (entryId) in a GW
   async function fetchManagerGwPoints(entryId, gw) {
@@ -176,8 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const m1 = { ...team.members[0] };
         const m2 = { ...team.members[1] };
 
-        m1.entryId = resolveEntryId(directory, m1.manager);
-        m2.entryId = resolveEntryId(directory, m2.manager);
+m1.entryId = resolveEntryId(directory, m1.manager, team.teamName);
+m2.entryId = resolveEntryId(directory, m2.manager, team.teamName);
 
         if (!m1.entryId || !m2.entryId) {
           const tr = document.createElement('tr');
