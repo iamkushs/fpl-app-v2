@@ -363,23 +363,32 @@ if (!captainEntryId) {
         const teamPoints = base + (captainPoints || 0);
 
         results.push({
-          teamName: team.teamName,
-          members: [m1, m2],
-          captainEntryId,
-          autoLowest,
-          teamPoints
-        });
+  teamName: team.teamName,
+  members: [m1, m2],
+  captainEntryId,
+  autoLowest,
+  teamPoints
+});
 
-        if (m1.points === 0 || m2.points === 0) anyPending = true;
-      }
+if (m1.points === 0 || m2.points === 0) anyPending = true;
+} // <-- this closes the for (const team of TEAMS) loop
 
-      // 3) Render results table
-      results.forEach((team, idx) => {
-        const tr = document.createElement('tr');
-        const m1 = team.members[0];
-        const m2 = team.members[1];
-        const isCaptain1 = team.captainEntryId === m1.entryId;
-        const isCaptain2 = team.captainEntryId === m2.entryId;
+// Sort results by points desc, then alphabetically
+results.sort((a, b) => {
+  if (b.teamPoints !== a.teamPoints) return b.teamPoints - a.teamPoints;
+  return a.teamName.localeCompare(b.teamName);
+});
+
+// 3) Render results table
+results.forEach((team, idx) => {
+  const tr = document.createElement('tr');
+  const m1 = team.members[0];
+  const m2 = team.members[1];
+  const isCaptain1 = team.captainEntryId === m1.entryId;
+  const isCaptain2 = team.captainEntryId === m2.entryId;
+  …
+});
+
 
         tr.innerHTML = `
           <td>${idx + 1}</td>
